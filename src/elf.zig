@@ -3,7 +3,7 @@ const std = @import("std");
 const EI_NIDENT = 16;
 const ELFMAG = "\x7fELF";
 
-pub const ElfHeader = struct {
+pub const ElfHeader = extern struct {
     e_ident: [EI_NIDENT]u8,
     e_type: u16,
     e_machine: u16,
@@ -20,7 +20,7 @@ pub const ElfHeader = struct {
     e_shstrndx: u16,
 };
 
-pub const ElfProgramHeader = struct {
+pub const ElfProgramHeader = extern struct {
     p_type: u32,
     p_flags: u32,
     p_offset: u64,
@@ -31,7 +31,7 @@ pub const ElfProgramHeader = struct {
     p_align: u64,
 };
 
-pub const ElfSectionHeader = struct {
+pub const ElfSectionHeader = extern struct {
     sh_name: u32,
     sh_type: u32,
     sh_flags: u64,
