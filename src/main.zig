@@ -1,4 +1,5 @@
 const std = @import("std");
+const elf = @import("elf.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -10,6 +11,22 @@ pub fn main() !void {
 
     for (args, 0..) |arg, i| {
         std.debug.print("arg {d}: {s}\n", .{ i, arg });
+    }
+
+    // try to open a file
+    var file = try std.fs.cwd().openFile(args[1], .{});
+    defer file.close();
+
+    const ElfHeaderSize = @sizeOf(elf.ElfHeader);
+
+    var buffer: [ElfHeaderSize]u8 = undefined;
+
+    if (try file.read(&buffer) != ElfHeaderSize) {
+        return error.FileTooSmall;
+    }
+
+    if (!std.mem.eql(u8, buffer[0..elf.ELFMAG.len], elf.ELFMAG)) {
+        return error.BadElfFile;
     }
 
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)

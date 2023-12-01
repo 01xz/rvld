@@ -1,7 +1,21 @@
 const std = @import("std");
 
-const EI_NIDENT = 16;
-const ELFMAG = "\x7fELF";
+pub const EI_NIDENT = 16;
+pub const ELFMAG = "\x7fELF";
+
+pub const EM_RISCV = 243;
+
+pub const EI_CLASS = 4;
+pub const ELFCLASSNONE = 0;
+pub const ELFCLASS32 = 1;
+pub const ELFCLASS64 = 2;
+pub const ELFCLASSNUM = 3;
+
+pub const PT_LOAD = 1;
+
+pub const PF_X = 0x1;
+pub const PF_W = 0x2;
+pub const PF_R = 0x4;
 
 pub const ElfHeader = extern struct {
     e_ident: [EI_NIDENT]u8,
