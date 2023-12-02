@@ -13,20 +13,57 @@ pub fn main() !void {
         std.debug.print("arg {d}: {s}\n", .{ i, arg });
     }
 
-    // try to open a file
+    // try to open a file, read only as default
     var file = try std.fs.cwd().openFile(args[1], .{});
     defer file.close();
 
-    const ElfHeaderSize = @sizeOf(elf.ElfHeader);
+    const elf_header_size = @sizeOf(elf.ElfHeader);
 
-    var buffer: [ElfHeaderSize]u8 = undefined;
+    var elf_header_buffer: [elf_header_size]u8 = undefined;
 
-    if (try file.read(&buffer) != ElfHeaderSize) {
+    if (try file.read(&elf_header_buffer) != elf_header_size) {
         return error.FileTooSmall;
     }
 
-    if (!std.mem.eql(u8, buffer[0..elf.ELFMAG.len], elf.ELFMAG)) {
+    if (!std.mem.eql(u8, elf_header_buffer[0..elf.ELFMAG.len], elf.ELFMAG)) {
         return error.BadElfFile;
+    }
+
+    const elf_header = std.mem.bytesAsValue(elf.ElfHeader, &elf_header_buffer);
+
+    if (elf_header.e_machine != elf.EM_RISCV or elf_header.e_ident[elf.EI_CLASS] != elf.ELFCLASS64) {
+        return error.NotRV64;
+    }
+
+    try file.seekTo(elf_header.e_shoff);
+
+    const section_header_size = @sizeOf(elf.ElfSectionHeader);
+
+    var section_header_buffer: [section_header_size]u8 = undefined;
+
+    if (try file.read(&section_header_buffer) != section_header_size) {
+        return error.FileTooSmall;
+    }
+
+    const section_header_ptr = std.mem.bytesAsValue(elf.ElfSectionHeader, &section_header_buffer);
+
+    const section_num = if (elf_header.e_shnum == 0) section_header_ptr.sh_size else elf_header.e_shnum;
+
+    // std.debug.print("the section number is {d}\n", .{section_num});
+
+    var section_headers = try std.heap.page_allocator.alloc(elf.ElfSectionHeader, section_num);
+    defer std.heap.page_allocator.free(section_headers);
+
+    for (section_headers, 0..) |*sh_ptr, i| {
+        if (i == 0) {
+            sh_ptr.* = section_header_ptr.*;
+        } else {
+            var buffer: [section_header_size]u8 = undefined;
+            if (try file.read(&buffer) != section_header_size) {
+                return error.FileTooSmall;
+            }
+            sh_ptr.* = std.mem.bytesToValue(elf.ElfSectionHeader, &buffer);
+        }
     }
 
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
