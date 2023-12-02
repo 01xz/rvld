@@ -1,5 +1,6 @@
 const std = @import("std");
 const elf = @import("elf.zig");
+const Inputfile = @import("InputFile.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -17,54 +18,8 @@ pub fn main() !void {
     var file = try std.fs.cwd().openFile(args[1], .{});
     defer file.close();
 
-    const elf_header_size = @sizeOf(elf.ElfHeader);
-
-    var elf_header_buffer: [elf_header_size]u8 = undefined;
-
-    if (try file.read(&elf_header_buffer) != elf_header_size) {
-        return error.FileTooSmall;
-    }
-
-    if (!std.mem.eql(u8, elf_header_buffer[0..elf.ELFMAG.len], elf.ELFMAG)) {
-        return error.BadElfFile;
-    }
-
-    const elf_header_ptr = std.mem.bytesAsValue(elf.ElfHeader, &elf_header_buffer);
-
-    if (elf_header_ptr.e_machine != elf.EM_RISCV or elf_header_ptr.e_ident[elf.EI_CLASS] != elf.ELFCLASS64) {
-        return error.NotRV64;
-    }
-
-    try file.seekTo(elf_header_ptr.e_shoff);
-
-    const section_header_size = @sizeOf(elf.SectionHeader);
-
-    var section_header_buffer: [section_header_size]u8 = undefined;
-
-    if (try file.read(&section_header_buffer) != section_header_size) {
-        return error.FileTooSmall;
-    }
-
-    const section_header_ptr = std.mem.bytesAsValue(elf.SectionHeader, &section_header_buffer);
-
-    const section_num = if (elf_header_ptr.e_shnum == 0) section_header_ptr.sh_size else elf_header_ptr.e_shnum;
-
-    // std.debug.print("the section number is {d}\n", .{section_num});
-
-    var section_headers = try std.heap.page_allocator.alloc(elf.SectionHeader, section_num);
-    defer std.heap.page_allocator.free(section_headers);
-
-    for (section_headers, 0..) |*sh_ptr, i| {
-        if (i == 0) {
-            sh_ptr.* = section_header_ptr.*;
-        } else {
-            var buffer: [section_header_size]u8 = undefined;
-            if (try file.read(&buffer) != section_header_size) {
-                return error.FileTooSmall;
-            }
-            sh_ptr.* = std.mem.bytesToValue(elf.SectionHeader, &buffer);
-        }
-    }
+    var input_file = try Inputfile.init(&file, std.heap.page_allocator);
+    defer input_file.deinit(std.heap.page_allocator);
 
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
