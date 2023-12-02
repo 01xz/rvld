@@ -29,13 +29,13 @@ pub fn main() !void {
         return error.BadElfFile;
     }
 
-    const elf_header = std.mem.bytesAsValue(elf.ElfHeader, &elf_header_buffer);
+    const elf_header_ptr = std.mem.bytesAsValue(elf.ElfHeader, &elf_header_buffer);
 
-    if (elf_header.e_machine != elf.EM_RISCV or elf_header.e_ident[elf.EI_CLASS] != elf.ELFCLASS64) {
+    if (elf_header_ptr.e_machine != elf.EM_RISCV or elf_header_ptr.e_ident[elf.EI_CLASS] != elf.ELFCLASS64) {
         return error.NotRV64;
     }
 
-    try file.seekTo(elf_header.e_shoff);
+    try file.seekTo(elf_header_ptr.e_shoff);
 
     const section_header_size = @sizeOf(elf.SectionHeader);
 
@@ -47,7 +47,7 @@ pub fn main() !void {
 
     const section_header_ptr = std.mem.bytesAsValue(elf.SectionHeader, &section_header_buffer);
 
-    const section_num = if (elf_header.e_shnum == 0) section_header_ptr.sh_size else elf_header.e_shnum;
+    const section_num = if (elf_header_ptr.e_shnum == 0) section_header_ptr.sh_size else elf_header_ptr.e_shnum;
 
     // std.debug.print("the section number is {d}\n", .{section_num});
 
