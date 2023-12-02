@@ -50,10 +50,19 @@ pub const ElfSectionHeader = extern struct {
     sh_type: u32,
     sh_flags: u64,
     sh_addr: u64,
-    sh_offset: usize,
-    sh_size: usize,
+    sh_offset: u64,
+    sh_size: u64,
     sh_link: u32,
     sh_info: u32,
     sh_addralign: u64,
-    sh_entsize: usize,
+    sh_entsize: u64,
+};
+
+pub const ElfSym = extern struct {
+    st_name: u32,
+    st_info: u8,
+    st_other: u8,
+    st_shndx: u16,
+    st_value: u64,
+    st_size: u64,
 };
