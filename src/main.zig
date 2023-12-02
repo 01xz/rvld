@@ -37,7 +37,7 @@ pub fn main() !void {
 
     try file.seekTo(elf_header.e_shoff);
 
-    const section_header_size = @sizeOf(elf.ElfSectionHeader);
+    const section_header_size = @sizeOf(elf.SectionHeader);
 
     var section_header_buffer: [section_header_size]u8 = undefined;
 
@@ -45,13 +45,13 @@ pub fn main() !void {
         return error.FileTooSmall;
     }
 
-    const section_header_ptr = std.mem.bytesAsValue(elf.ElfSectionHeader, &section_header_buffer);
+    const section_header_ptr = std.mem.bytesAsValue(elf.SectionHeader, &section_header_buffer);
 
     const section_num = if (elf_header.e_shnum == 0) section_header_ptr.sh_size else elf_header.e_shnum;
 
     // std.debug.print("the section number is {d}\n", .{section_num});
 
-    var section_headers = try std.heap.page_allocator.alloc(elf.ElfSectionHeader, section_num);
+    var section_headers = try std.heap.page_allocator.alloc(elf.SectionHeader, section_num);
     defer std.heap.page_allocator.free(section_headers);
 
     for (section_headers, 0..) |*sh_ptr, i| {
@@ -62,7 +62,7 @@ pub fn main() !void {
             if (try file.read(&buffer) != section_header_size) {
                 return error.FileTooSmall;
             }
-            sh_ptr.* = std.mem.bytesToValue(elf.ElfSectionHeader, &buffer);
+            sh_ptr.* = std.mem.bytesToValue(elf.SectionHeader, &buffer);
         }
     }
 

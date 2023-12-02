@@ -34,7 +34,7 @@ pub const ElfHeader = extern struct {
     e_shstrndx: u16,
 };
 
-pub const ElfProgramHeader = extern struct {
+pub const ProgramHeader = extern struct {
     p_type: u32,
     p_flags: u32,
     p_offset: u64,
@@ -45,7 +45,7 @@ pub const ElfProgramHeader = extern struct {
     p_align: u64,
 };
 
-pub const ElfSectionHeader = extern struct {
+pub const SectionHeader = extern struct {
     sh_name: u32,
     sh_type: u32,
     sh_flags: u64,
@@ -58,7 +58,7 @@ pub const ElfSectionHeader = extern struct {
     sh_entsize: u64,
 };
 
-pub const ElfSym = extern struct {
+pub const Sym = extern struct {
     st_name: u32,
     st_info: u8,
     st_other: u8,
