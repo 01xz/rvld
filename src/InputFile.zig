@@ -7,6 +7,7 @@ const Allocator = std.mem.Allocator;
 
 file: *File,
 section_headers: []elf.SectionHeader,
+shstr_tab: []u8,
 
 pub fn init(file: *File, allocator: Allocator) !InputFile {
     const elf_header_size = @sizeOf(elf.ElfHeader);
@@ -39,7 +40,10 @@ pub fn init(file: *File, allocator: Allocator) !InputFile {
 
     const section_header_ptr = std.mem.bytesAsValue(elf.SectionHeader, &section_header_buffer);
 
-    const section_num = if (elf_header_ptr.e_shnum == 0) section_header_ptr.sh_size else elf_header_ptr.e_shnum;
+    const section_num = if (elf_header_ptr.e_shnum == 0)
+        section_header_ptr.sh_size
+    else
+        elf_header_ptr.e_shnum;
 
     var section_headers = try allocator.alloc(elf.SectionHeader, section_num);
 
@@ -55,9 +59,21 @@ pub fn init(file: *File, allocator: Allocator) !InputFile {
         }
     }
 
+    const shstrndx = if (elf_header_ptr.e_shstrndx == std.math.maxInt(u16))
+        section_header_ptr.sh_link
+    else
+        elf_header_ptr.e_shstrndx;
+
+    // TODO: use MappedFile
+    const shstr_tab: []u8 = {
+        _ = shstrndx;
+        return undefined;
+    };
+
     return .{
         .file = file,
         .section_headers = section_headers,
+        .shstr_tab = shstr_tab,
     };
 }
 
