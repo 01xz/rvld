@@ -1,82 +1,81 @@
+const InputFile = @This();
+
 const std = @import("std");
 const elf = @import("elf.zig");
 
-const InputFile = @This();
-const File = std.fs.File;
 const Allocator = std.mem.Allocator;
+const File = std.fs.File;
+const MappedFile = @import("MappedFile.zig");
 
-file: *File,
+mapped_file: MappedFile,
 section_headers: []elf.SectionHeader,
 shstr_tab: []u8,
 
-pub fn init(file: *File, allocator: Allocator) !InputFile {
+pub fn init(path: []const u8, allocator: Allocator) !InputFile {
+    const mapped_file = try MappedFile.map(path);
+
     const elf_header_size = @sizeOf(elf.ElfHeader);
+    const section_header_size = @sizeOf(elf.SectionHeader);
 
-    var elf_header_buffer: [elf_header_size]u8 = undefined;
-
-    if (try file.read(&elf_header_buffer) != elf_header_size) {
-        return error.FileTooSmall;
+    if (mapped_file.size < elf_header_size) {
+        return error.FileToolSmall;
     }
 
-    if (!std.mem.eql(u8, elf_header_buffer[0..elf.ELFMAG.len], elf.ELFMAG)) {
+    if (!std.mem.eql(u8, mapped_file.data[0..elf.ELFMAG.len], elf.ELFMAG)) {
         return error.BadElfFile;
     }
 
-    const elf_header_ptr = std.mem.bytesAsValue(elf.ElfHeader, &elf_header_buffer);
+    const elf_header_ptr = std.mem.bytesAsValue(elf.ElfHeader, mapped_file.data[0..elf_header_size]);
 
-    if (elf_header_ptr.e_machine != elf.EM_RISCV or elf_header_ptr.e_ident[elf.EI_CLASS] != elf.ELFCLASS64) {
+    if (elf_header_ptr.e_machine != elf.EM_RISCV or
+        elf_header_ptr.e_ident[elf.EI_CLASS] != elf.ELFCLASS64)
+    {
         return error.NotRV64;
     }
 
-    try file.seekTo(elf_header_ptr.e_shoff);
-
-    const section_header_size = @sizeOf(elf.SectionHeader);
-
-    var section_header_buffer: [section_header_size]u8 = undefined;
-
-    if (try file.read(&section_header_buffer) != section_header_size) {
-        return error.FileTooSmall;
-    }
-
-    const section_header_ptr = std.mem.bytesAsValue(elf.SectionHeader, &section_header_buffer);
+    const section_header_begin = std.mem.bytesAsValue(elf.SectionHeader, mapped_file.data[elf_header_ptr.e_shoff..][0..section_header_size]);
 
     const section_num = if (elf_header_ptr.e_shnum == 0)
-        section_header_ptr.sh_size
+        section_header_begin.sh_size
     else
         elf_header_ptr.e_shnum;
+
+    if (mapped_file.size < elf_header_ptr.e_shoff + section_num * section_header_size) {
+        return error.CorruptedElfFile;
+    }
 
     var section_headers = try allocator.alloc(elf.SectionHeader, section_num);
 
     for (section_headers, 0..) |*sh_ptr, i| {
-        if (i == 0) {
-            sh_ptr.* = section_header_ptr.*;
-        } else {
-            var buffer: [section_header_size]u8 = undefined;
-            if (try file.read(&buffer) != section_header_size) {
-                return error.FileTooSmall;
-            }
-            sh_ptr.* = std.mem.bytesToValue(elf.SectionHeader, &buffer);
-        }
+        const sh_offset = elf_header_ptr.e_shoff + i * section_header_size;
+        sh_ptr.* = std.mem.bytesToValue(elf.SectionHeader, mapped_file.data[sh_offset..][0..section_header_size]);
     }
 
-    const shstrndx = if (elf_header_ptr.e_shstrndx == std.math.maxInt(u16))
-        section_header_ptr.sh_link
+    const shstrndx = if (elf_header_ptr.e_shstrndx == std.math.maxInt(@TypeOf(elf_header_ptr.e_shstrndx)))
+        section_header_begin.sh_link
     else
         elf_header_ptr.e_shstrndx;
 
-    // TODO: use MappedFile
-    const shstr_tab: []u8 = {
-        _ = shstrndx;
-        return undefined;
-    };
+    const shstr_tab_size = section_headers[shstrndx].sh_size;
+
+    var shstr_tab = try allocator.alloc(u8, shstr_tab_size);
+
+    const shstr_tab_begin = section_headers[shstrndx].sh_offset;
+    std.mem.copy(u8, shstr_tab, mapped_file.data[shstr_tab_begin..][0..shstr_tab_size]);
 
     return .{
-        .file = file,
+        .mapped_file = mapped_file,
         .section_headers = section_headers,
         .shstr_tab = shstr_tab,
     };
 }
 
 pub fn deinit(self: *InputFile, allocator: Allocator) void {
+    allocator.free(self.shstr_tab);
+    self.shstr_tab = undefined;
+
     allocator.free(self.section_headers);
+    self.section_headers = undefined;
+
+    self.mapped_file.unmap();
 }

@@ -14,11 +14,7 @@ pub fn main() !void {
         std.debug.print("arg {d}: {s}\n", .{ i, arg });
     }
 
-    // try to open a file, read only as default
-    var file = try std.fs.cwd().openFile(args[1], .{});
-    defer file.close();
-
-    var input_file = try Inputfile.init(&file, std.heap.page_allocator);
+    var input_file = try Inputfile.init(args[1], std.heap.page_allocator);
     defer input_file.deinit(std.heap.page_allocator);
 
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
