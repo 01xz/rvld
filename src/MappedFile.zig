@@ -20,4 +20,6 @@ pub fn map(path: []const u8) !MappedFile {
 
 pub fn unmap(self: *MappedFile) void {
     std.os.munmap(@alignCast(self.data));
+    self.data = undefined;
+    self.size = undefined;
 }
