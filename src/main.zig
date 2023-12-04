@@ -1,5 +1,4 @@
 const std = @import("std");
-const elf = @import("elf.zig");
 const Inputfile = @import("InputFile.zig");
 
 pub fn main() !void {
@@ -17,6 +16,9 @@ pub fn main() !void {
     var input_file = try Inputfile.init(args[1], std.heap.page_allocator);
     defer input_file.deinit(std.heap.page_allocator);
 
+    for (input_file.shdrs, 0..) |*sh_ptr, i| {
+        std.debug.print("section header {d} name is {d}\n", .{ i, sh_ptr.sh_name });
+    }
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
