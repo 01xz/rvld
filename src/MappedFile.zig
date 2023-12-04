@@ -1,6 +1,6 @@
-const std = @import("std");
-
 const MappedFile = @This();
+
+const std = @import("std");
 
 data: []u8,
 size: u64,
