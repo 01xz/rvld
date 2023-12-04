@@ -48,8 +48,8 @@ pub fn init(path: []const u8, allocator: Allocator) !InputFile {
     var shdrs = try allocator.alloc(Shdr, shnum);
 
     for (shdrs, 0..) |*shdr_ptr, i| {
-        const sh_offset = ehdr_ptr.e_shoff + i * shdr_size;
-        shdr_ptr.* = std.mem.bytesToValue(Shdr, mapped_file.data[sh_offset..][0..shdr_size]);
+        const shdr_offset = ehdr_ptr.e_shoff + i * shdr_size;
+        shdr_ptr.* = std.mem.bytesToValue(Shdr, mapped_file.data[shdr_offset..][0..shdr_size]);
     }
 
     const shstrndx = if (ehdr_ptr.e_shstrndx == std.math.maxInt(@TypeOf(ehdr_ptr.e_shstrndx)))
