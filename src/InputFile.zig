@@ -3,11 +3,11 @@ const InputFile = @This();
 const std = @import("std");
 const elf = std.elf;
 
+const Allocator = std.mem.Allocator;
 const MappedFile = @import("MappedFile.zig");
 const Ehdr = elf.Elf64_Ehdr;
 const Shdr = elf.Elf64_Shdr;
 const Sym = elf.Elf64_Sym;
-const Allocator = std.mem.Allocator;
 
 allocator: Allocator,
 
