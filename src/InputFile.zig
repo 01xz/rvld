@@ -6,11 +6,20 @@ const elf = std.elf;
 const MappedFile = @import("MappedFile.zig");
 const Ehdr = elf.Elf64_Ehdr;
 const Shdr = elf.Elf64_Shdr;
+const Sym = elf.Elf64_Sym;
 const Allocator = std.mem.Allocator;
 
+allocator: Allocator,
+
 mapped_file: MappedFile,
-shdrs: []Shdr,
-shstrtab: []u8,
+
+shdrs: []Shdr = undefined,
+syms: []Sym = undefined,
+
+shstrtab: []u8 = undefined,
+symstrtab: []u8 = undefined,
+
+first_global: i64 = undefined,
 
 pub fn init(path: []const u8, allocator: Allocator) !InputFile {
     const mapped_file = try MappedFile.map(path);
@@ -34,49 +43,102 @@ pub fn init(path: []const u8, allocator: Allocator) !InputFile {
         return error.NotRV64;
     }
 
-    const shdr_begin = std.mem.bytesAsValue(Shdr, mapped_file.data[ehdr_ptr.e_shoff..][0..shdr_size]);
+    var input_file: InputFile = .{
+        .allocator = allocator,
+        .mapped_file = mapped_file,
+    };
 
-    const shnum = if (ehdr_ptr.e_shnum == 0)
+    const shdr_offset = ehdr_ptr.e_shoff;
+
+    const shdr_begin = std.mem.bytesAsValue(Shdr, mapped_file.data[shdr_offset..][0..shdr_size]);
+
+    const shdr_num = if (ehdr_ptr.e_shnum == 0)
         shdr_begin.sh_size
     else
         ehdr_ptr.e_shnum;
 
-    if (mapped_file.size < ehdr_ptr.e_shoff + shnum * shdr_size) {
-        return error.CorruptedElfFile;
-    }
-
-    var shdrs = try allocator.alloc(Shdr, shnum);
-
-    for (shdrs, 0..) |*shdr_ptr, i| {
-        const shdr_offset = ehdr_ptr.e_shoff + i * shdr_size;
-        shdr_ptr.* = std.mem.bytesToValue(Shdr, mapped_file.data[shdr_offset..][0..shdr_size]);
-    }
+    input_file.shdrs = try input_file.read(Shdr, shdr_offset, shdr_num);
 
     const shstrndx = if (ehdr_ptr.e_shstrndx == std.math.maxInt(@TypeOf(ehdr_ptr.e_shstrndx)))
         shdr_begin.sh_link
     else
         ehdr_ptr.e_shstrndx;
 
-    const shstrtab_size = shdrs[shstrndx].sh_size;
+    input_file.shstrtab = try input_file.readBytesFromSectionIndex(shstrndx);
 
-    var shstrtab = try allocator.alloc(u8, shstrtab_size);
-
-    const shstrtab_offset = shdrs[shstrndx].sh_offset;
-    std.mem.copy(u8, shstrtab, mapped_file.data[shstrtab_offset..][0..shstrtab_size]);
-
-    return .{
-        .mapped_file = mapped_file,
-        .shdrs = shdrs,
-        .shstrtab = shstrtab,
-    };
+    return input_file;
 }
 
-pub fn deinit(self: *InputFile, allocator: Allocator) void {
-    allocator.free(self.shstrtab);
+pub fn deinit(self: *InputFile) void {
+    self.allocator.free(self.shstrtab);
     self.shstrtab = undefined;
 
-    allocator.free(self.shdrs);
+    self.allocator.free(self.shdrs);
     self.shdrs = undefined;
 
     self.mapped_file.unmap();
+}
+
+fn read(self: *InputFile, comptime T: type, offset: u64, num: u64) ![]T {
+    const size = @sizeOf(T);
+
+    if (self.mapped_file.size < offset + num * size) {
+        return error.ReadOutOfRange;
+    }
+
+    var out = try self.allocator.alloc(T, num);
+
+    for (out, 0..) |*ptr, i| {
+        const offset_i = offset + i * size;
+        ptr.* = std.mem.bytesToValue(T, self.mapped_file.data[offset_i..][0..size]);
+    }
+
+    return out;
+}
+
+fn readBytesFromSection(self: *InputFile, shdr_ptr: *const Shdr) ![]u8 {
+    const offset = shdr_ptr.sh_offset;
+    const size = shdr_ptr.sh_size;
+
+    if (self.mapped_file.size < offset + size) {
+        return error.CorruptedElfFile;
+    }
+
+    var dest = try self.allocator.alloc(u8, size);
+    std.mem.copy(u8, dest, self.mapped_file.data[offset..][0..size]);
+
+    return dest;
+}
+
+fn readBytesFromSectionIndex(self: *InputFile, i: u32) ![]u8 {
+    return try self.readBytesFromSection(&self.shdrs[i]);
+}
+
+fn findSection(self: *const InputFile, sh_type: u32) !*Shdr {
+    for (self.shdrs) |*shdr_ptr| {
+        if (shdr_ptr.sh_type == sh_type) return shdr_ptr;
+    }
+    return error.UnableToFind;
+}
+
+fn readSyms(self: *InputFile, shdr_ptr: *const Shdr) ![]Sym {
+    const sym_size = @sizeOf(Sym);
+    const sym_offset = shdr_ptr.sh_offset;
+    const sym_num = shdr_ptr.sh_size / sym_size;
+    return try self.read(Sym, sym_offset, sym_num);
+}
+
+pub fn parse(self: *InputFile) !void {
+    const symtab_shdr_ptr = try self.findSection(elf.SHT_SYMTAB);
+    self.first_global = symtab_shdr_ptr.sh_info;
+    self.syms = try self.readSyms(symtab_shdr_ptr);
+    self.symstrtab = try self.readBytesFromSectionIndex(symtab_shdr_ptr.sh_link);
+}
+
+pub fn parseClean(self: *InputFile) void {
+    self.allocator.free(self.symstrtab);
+    self.symstrtab = undefined;
+
+    self.allocator.free(self.syms);
+    self.syms = undefined;
 }
