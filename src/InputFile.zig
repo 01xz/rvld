@@ -52,19 +52,21 @@ pub fn init(path: []const u8, allocator: Allocator) !InputFile {
 
     const shdr_begin = std.mem.bytesAsValue(Shdr, mapped_file.data[shdr_offset..][0..shdr_size]);
 
-    const shdr_num = if (ehdr_ptr.e_shnum == 0)
-        shdr_begin.sh_size
-    else
-        ehdr_ptr.e_shnum;
+    input_file.shdrs = blk: {
+        const shdr_num = if (ehdr_ptr.e_shnum == 0)
+            shdr_begin.sh_size
+        else
+            ehdr_ptr.e_shnum;
+        break :blk try input_file.read(Shdr, shdr_offset, shdr_num);
+    };
 
-    input_file.shdrs = try input_file.read(Shdr, shdr_offset, shdr_num);
-
-    const shstrndx = if (ehdr_ptr.e_shstrndx == std.math.maxInt(@TypeOf(ehdr_ptr.e_shstrndx)))
-        shdr_begin.sh_link
-    else
-        ehdr_ptr.e_shstrndx;
-
-    input_file.shstrtab = try input_file.readBytesFromSectionIndex(shstrndx);
+    input_file.shstrtab = blk: {
+        const shstrndx = if (ehdr_ptr.e_shstrndx == std.math.maxInt(@TypeOf(ehdr_ptr.e_shstrndx)))
+            shdr_begin.sh_link
+        else
+            ehdr_ptr.e_shstrndx;
+        break :blk try input_file.readBytesFromSectionIndex(shstrndx);
+    };
 
     return input_file;
 }
