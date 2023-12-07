@@ -1,4 +1,6 @@
 const std = @import("std");
+
+const Context = @import("Context.zig");
 const Inputfile = @import("InputFile.zig");
 
 pub fn main() !void {
@@ -6,28 +8,23 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const args = try std.process.argsAlloc(allocator);
+    var args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    if (args.len < 2) {
-        return error.IllegalArgs;
+    var context = Context.init(allocator);
+    defer context.deinit();
+
+    try context.parseArgs(args);
+
+    for (context.context_args.library_paths.items) |path| {
+        std.debug.print("library path: {s}\n", .{path});
     }
 
-    var input_file = try Inputfile.init(args[1], allocator);
-    defer input_file.deinit();
-
-    for (input_file.shdrs, 0..) |*sh_ptr, i| {
-        std.debug.print("section header {d} name is {d}\n", .{ i, sh_ptr.sh_name });
+    for (context.context_args.remained.items) |s| {
+        std.debug.print("remained: -l{s}\n", .{s});
     }
 
-    std.debug.print("shstrtab: {s}\n", .{input_file.shstrtab});
-
-    try input_file.parse();
-    defer input_file.parseClean();
-
-    for (input_file.syms, 0..) |*sym_ptr, i| {
-        std.debug.print("symbol {d} name is {d}\n", .{ i, sym_ptr.st_name });
+    for (context.context_args.remained_file.items) |file| {
+        std.debug.print("remained file: {s}\n", .{file});
     }
-
-    std.debug.print("symstrtab: {s}\n", .{input_file.symstrtab});
 }
