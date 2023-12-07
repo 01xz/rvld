@@ -1,6 +1,7 @@
 const Context = @This();
 
 const std = @import("std");
+const config = @import("config");
 
 const Allocator = std.mem.Allocator;
 const StringList = std.ArrayList([:0]const u8);
@@ -13,6 +14,7 @@ const ContextArgs = struct {
 
 allocator: Allocator,
 context_args: ContextArgs,
+version: []const u8 = config.version,
 
 pub fn init(allocator: Allocator) Context {
     return .{
@@ -50,7 +52,7 @@ pub fn parseArgs(self: *Context, args: [][:0]u8) !void {
         if (readFlag(args[i..], "version", &i) or
             readFlag(args[i..], "v", &i))
         {
-            std.debug.print("rvld version: 0.0.0\n", .{});
+            std.debug.print("ld (rvld) {s}\n", .{self.version});
             std.os.exit(0);
         } else if (try readAndParse(args[i..], "output", &i, &arg) or
             try readAndParse(args[i..], "o", &i, &arg))
