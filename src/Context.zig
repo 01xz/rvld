@@ -36,16 +36,17 @@ pub fn deinit(self: *Context) void {
 
 pub fn parseArgs(self: *Context, args: [][:0]u8) !void {
     if (args.len < 2) {
-        std.debug.print("usage: {s} [options] file...\n", .{args[0]});
-        std.os.exit(0);
+        std.debug.print("{s}: no input files\n", .{args[0]});
+        std.os.exit(1);
     }
 
     var i: usize = 1;
     var arg: [:0]const u8 = undefined;
+    var arg_head = args[0];
 
     while (i < args.len) {
         if (readFlag(args[i..], "help", &i) or readFlag(args[i..], "h", &i)) {
-            std.debug.print("usage: {s} [options] file...\n", .{args[0]});
+            std.debug.print("Usage: {s} [options] file...\n", .{arg_head});
             std.os.exit(0);
         }
 
@@ -61,7 +62,9 @@ pub fn parseArgs(self: *Context, args: [][:0]u8) !void {
             std.debug.print("output: {s}\n", .{self.context_args.output});
         } else if (try readAndParse(args[i..], "m", &i, &arg)) {
             if (!std.mem.eql(u8, arg, "elf64lriscv")) {
-                std.debug.print("unknown -m {s}", .{arg});
+                std.debug.print("{s}: unrecognised emulation mode: {s}\n", .{ arg_head, arg });
+                std.debug.print("Supported emulations: {s}\n", .{"elf64lriscv"});
+                std.os.exit(1);
             }
         } else if (try readAndParse(args[i..], "L", &i, &arg)) {
             try self.context_args.library_paths.append(arg);
@@ -82,7 +85,9 @@ pub fn parseArgs(self: *Context, args: [][:0]u8) !void {
             // ignored
         } else {
             if (args[i][0] == '-') {
-                std.debug.print("illegal argument: {s}\n", .{args[i]});
+                std.debug.print("{s}: unrecognized option: {s}\n", .{ arg_head, args[i] });
+                std.debug.print("{s}: use the --help option for usage information\n", .{arg_head});
+                std.os.exit(1);
             } else {
                 try self.context_args.remained_file.append(args[i]);
             }
